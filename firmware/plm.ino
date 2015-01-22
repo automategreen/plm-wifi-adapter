@@ -66,8 +66,8 @@ const int PLM_REQUEST_LENGTHS[] = {
   2   // 0x73 - Get IM Configuration
 };
 
-TCPServer plmServer = TCPServer(9761);
-TCPClient plmClient;
+/*TCPServer plmServer = TCPServer(9761);
+TCPClient plmClient;*/
 
 uint8_t commandBuffer[25];
 int commandLength = 0;
@@ -80,7 +80,7 @@ uint8_t serverEnabled = 0;
 void setup() {
   Spark.function("insteon", insteonCommand);
   Spark.function("config", config);
-
+/*
   serverEnabled = EEPROM.read(SERVER_ENABLED_ADDR);
 
   if(serverEnabled == 0xFF) {
@@ -90,12 +90,12 @@ void setup() {
 
   if(serverEnabled) {
     plmServer.begin();
-  }
+  }*/
   Serial1.begin(19200);
 }
 
 void loop() {
-  if(serverEnabled) {
+  /*if(serverEnabled) {
     if (plmClient.connected()) {
       while (plmClient.available()) {
         char toPLMByte = plmClient.read();
@@ -104,7 +104,7 @@ void loop() {
     } else {
       plmClient = plmServer.available();
     }
-  }
+  }*/
   while(Serial1.available()) {
     char fromPLMByte = Serial1.read();
     processPLMCommand(fromPLMByte);
@@ -126,23 +126,27 @@ int config(String args) {
 int insteonCommand(String args) {
   bool validCommand = false;
 
-  if(args.length() % 2 != 0 ) {
-    return 0;
+  unsigned int argsLen = args.length();
+
+  if(argsLen % 2 != 0 ) {
+    return -1;
   }
 
-  int cmdLength = args.length() / 2;
+  int cmdLength = argsLen / 2;
   if(cmdLength < 2) {
-    return 0;
+    return -2;
   }
 
   uint8_t cmd[cmdLength];
 
+
   for(int i = 0; i < cmdLength; i++) {
-    uint8_t val1 = hexToInt(args.charAt(2*i));
-    uint8_t val2 = hexToInt(args.charAt(2*i + 1));
+    int j = 2*i;
+    uint8_t val1 = hexToInt(args.charAt(j++));
+    uint8_t val2 = hexToInt(args.charAt(j));
 
     if(val1 > 0x0F || val2> 0x0F) {
-      return 0;
+      return -3;
     }
 
     uint8_t val = (val1 << 4) | val2;
@@ -150,11 +154,11 @@ int insteonCommand(String args) {
   }
 
   if(cmd[0] != START_CMD) {
-    return 0;
+    return -4;
   }
 
   if(cmd[1] < 0x60 || cmd[1] > 0x73) {
-    return 0;
+    return -5;
   }
 
   int expectedLength = PLM_REQUEST_LENGTHS[cmd[1] - 0x60];
@@ -163,7 +167,7 @@ int insteonCommand(String args) {
   }
 
   if(expectedLength != cmdLength) {
-    return 0;
+    return -6;
   }
 
 
@@ -192,7 +196,7 @@ void processPLMCommand(char byte) {
   if(commandCounter > 1) {
 
     unsigned long currentTime = millis();
-    if(currentTime - lastByteTime < 1000) { // timeout after 100 ms
+    if(currentTime - lastByteTime < 1000) { // timeout after 1000 ms
       lastByteTime = currentTime;
       if(commandCounter == 2) {
         commandType = byte;
@@ -205,14 +209,14 @@ void processPLMCommand(char byte) {
 
       if(commandCounter == commandLength) {
         commandCounter = 0;
-        if (serverEnabled && plmClient.connected()) {
+        /*if (serverEnabled && plmClient.connected()) {
           plmServer.write(commandBuffer, commandLength);
-        }
+        }*/
 
         String commandStr = "";
 
         for(int i = 0; i < commandLength; i++) {
-          if(commandBuffer[i] < 10) {
+          if(commandBuffer[i] <= 0x0f) {
             commandStr += "0";
           }
           commandStr += String(commandBuffer[i], HEX);
